@@ -1,0 +1,149 @@
+---
+title: "UDef_ARP_Rversion"
+author: "sinaeh10"
+date: "2024-03-21"
+output: html_document
+---
+
+# Definitions
+Binary map = map that contains 0's and 1's
+HRP = Historical Period
+NRT = Negligible Risk Threshold
+CAL = Calibration Period
+
+# Download packages
+
+```{r}
+#install.packages("Rtools")
+install.packages("raster")
+install.packages("sp")
+install.packages("terra")
+
+library(raster)
+library(terra)
+library(sp)
+library(dplyr)
+library(ggplot2)
+library(tibble)
+
+```
+
+# Load binary maps
+
+Geotiff “.tif” or TerrSet “.rst” (binary flat raster ) format
+```{r}
+# MAP OF DISTANCE FROM THE FOREST EDGE IN THE CAL
+distance_from_forest_edge <-
+  rast("C:\\Users\\sinaeh10\\file1.tiff")
+
+
+# MAP OF DEFORESTATION IN THE HRP
+deforestation_in_NRP <-
+  rast("C:\\Users\\sinaeh10\\file2.tiff")
+
+# MASK OF THE JURISDICTION
+mask_of_jurisdiction <-
+  rast("C:\\Users\\sinaeh10\\file3.tiff")
+
+# Convert to data frame
+distance_from_forest_edge_df <- as.data.frame(distance_from_forest_edge, xy = TRUE) #converts to dataframe
+distance_from_forest_edge_df$observation <- 1:nrow(distance_from_forest_edge_df) # add a row for naming
+distance_from_forest_edge_df2 <- distance_from_forest_edge_df[, c('x', 'y', 'eu_pasture')]
+rownames(distance_from_forest_edge_df2) <- distance_from_forest_edge_df$observation
+distance_from_forest_edge_df2 <- rownames_to_column(distance_from_forest_edge_df, var = "deforestation_frequency")
+
+
+deforestation_in_NRP_df <- as.data.frame(deforestation_in_NRP, xy = TRUE)
+mask_of_jurisdiction_df <- as.data.frame(mask_of_jurisdiction, xy = TRUE)
+```
+
+
+# Calculating Negligible Risk Threshold (NRT) in the HRP
+
+The NRT is defined as the distance from forest edge at which 99.5% of the deforestation experienced over the historical period has occurred
+
+distance in meters from forest edge (non-forest) beyond which deforestation is considered negligible
+Negligible = distance beyond which 0.5% of deforestation has occurred during the historical period (HRP)
+
+So... make histogram of frequency of deforestation / total frequency of deforestation?
+```{r}
+# need to find proportion of histogram where 99.%% of deforestation occurs in bin
+distance_from_forest_edge_df$cumulative_percentage <- distance_from_forest_edge_df$y / sum(distance_from_forest_edge_df$y) * 100
+
+```
+
+# ggplots
+```{r}
+#map
+ggplot() +
+    geom_raster(data = distance_from_forest_edge_df, aes(x = x, y = y, fill = eu_pasture)) +
+    scale_fill_viridis_c() +
+    coord_quickmap() 
+
+#histogram (y= frequency of deforestation in pixels, x=distance from forest edge in meters)
+ggplot() +
+    geom_histogram(data = distance_from_forest_edge_df, aes(eu_pasture), bins = 30) +
+  theme_minimal() +
+  labs(x = "Distance from forest edge (meters)", y="Frequency of deforestation (pixels)")
+
+#cumulative hisogram of historical deforestation against distance from non-forest and the Negligible Risk Threshold
+ggplot() +
+    geom_histogram(data = distance_from_forest_edge_df, aes(x = eu_pasture), group = distance_from_forest_edge_df$cumulative_percentage) +
+  theme_minimal() +
+  labs(x = "Distance from forest edge (meters)", y="Cumulative Percentage of Total Deforestation")
+
+
+#adding dashed line for NRT
+geom_vline(data=distance_from_forest_edge_df, aes(xintercept=grp.mean, color="red"),
+             linetype="dashed")
+
+```
+
+
+# Parameters
+
+## 1. Vulnerability Mapping
+### Input parameters for NRT Calculation
+- Map of Distance from the Forest Edge in CAL
+- Map of Deforestation in the HRP (binary map)
+- Mask of the Non-Excluded Jurisdiction (binary map)
+
+### Input parameters for vulnerability mapping
+- Negligible Risk Threshold (NRT) in the HRP
+
+### Output parameters
+- Name for the Vulnerability Map for the CAL
+
+## 2. Allocated Risk Mapping
+### Input parameters 
+- Map of Administrative Divisions
+- Vulnerability Map for the CAL (previous step?)
+- Map of Deforestation in the CAL (binary map)
+
+### Output parameters
+- Name for the Modeling Region Map in the CAL
+- Nave for the Relative Frequency Table (.csv)
+- Name for the Fitted Density Map in the CAL
+
+## 3. Model Fit Assessment
+### Input parameters
+- Fitted Density Map for the CAL (ha/pixel)
+- Mask of the Non-Excluded Jurisdiction (binary map)
+- Map of the Deforestation in the CAL (binary map)
+- Assessment Grid Cell Area or 100,000 (ha)
+
+### Output parameters
+- Title of Plot
+- Name for the plot
+- Name for the residual Map
+- X-axis maximum
+- y-axis maximum
+
+
+# Notes
+1. Allocated risk = a quantified expression of deforestation risk, expressed as deforestation density (ha/pixel) over a defined period
+
+
+Questions:
+1. CAL vs HRT - calibration period vs historical period
+2. Do you have the first three maps needed?
